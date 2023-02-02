@@ -1,0 +1,93 @@
+---
+title: "SQL and R"
+author: "Kayleah Griffen"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(openintro)
+library(RMySQL)
+```
+
+### Connecting to Database and Loading Data
+
+First, connect to the database and see what tables there are.
+```{r load-database}
+# Connect to the MySQL database
+
+mydb = dbConnect(MySQL(),
+                 user= rstudioapi::askForPassword("Database user"),
+                 password= rstudioapi::askForPassword("Database password"),
+                 dbname='movie_ratings',
+                 host='34.123.201.162')
+# Inspect what tables we have
+dbListTables(mydb)
+```
+There is a table named `movie_ratings` and named `movie_ratings_unpivot`. Load both of the tables and inspect them.
+
+```{r load-inspect}
+# Load both tables
+mr <- dbGetQuery(mydb, "select * from movie_ratings")
+mru <- dbGetQuery(mydb, "select * from movie_ratings_unpivot")
+glimpse(mr)
+glimpse(mru)
+```
+One table `mr` has columns that are the name of the reviewer, and the name of each movie. Each row has the entries for the name of the reviewer followed by their ratings of each movie. The second table `mru` has columns that are the name of the reviewer, the name of the movie, and the rating of the movie - with the entries for did not watch the movie removed.
+
+### Basic data analysis
+
+Based on the summary, the numbers in `mru` are stored as character strings. Convert them to integers.
+```{r integer-conversion}
+# Convert ratings to integer
+mru$rating <- as.integer(mru$rating)    
+```
+
+Get a basic idea for how many ratings each movie got and how each movie was rated.
+
+```{r data-analysis}
+ggplot(mru, aes(movie, rating)) +
+  geom_point() +
+  ggtitle("Ratings for Movies") +
+  xlab("Movie") + 
+  ylab("Ratings") + 
+  scale_x_discrete(labels=c("avatar" = "Avatar", 
+                            "causeway" = "Causeway",
+                            "harry_potter" = "Harry Potter and the Sorcerers Stone",
+                            "inception" = "Inception",
+                            "rodents" = "Rodents of Unusual Size",
+                            "top_gun_maverick" = "Top Gun: Maverick")) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+From the plot, it is clear that every movie was at least rated one time.
+
+Summarize into the mean movie rating.
+```{r summary-by-movie}
+mru_summary <-
+  mru %>% 
+  group_by(movie) %>% 
+  summarize(avg_rating=mean(rating))
+```
+
+Make a barchart of the mean ratings of each movie.
+```{r barchart}
+ggplot(data=mru_summary, aes(x=reorder(movie,-avg_rating), y=avg_rating)) +
+  geom_bar(stat="identity") + 
+  ggtitle("Average Ratings for Movies") +
+  xlab("Movie") + 
+  ylab("Average Rating") + 
+  scale_x_discrete(labels=c("avatar" = "Avatar", 
+                            "causeway" = "Causeway",
+                            "harry_potter" = "Harry Potter and the Sorcerers Stone",
+                            "inception" = "Inception",
+                            "rodents" = "Rodents of Unusual Size",
+                            "top_gun_maverick" = "Top Gun: Maverick")) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+This barchart is not perfect in that, some of the averages were only made up of one persons rating - however as a preliminary look it is alright as long as this caveat is noted. 
+
+### Additional Work
+
+To extend this work, in the future if the participants rated more movies I think it could make sense to normalize their ratings Additionally in the future code could be built to recommend certain movies to people who did not view them already.
